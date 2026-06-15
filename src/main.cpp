@@ -2,7 +2,7 @@
 #include <DHT.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
-#include "BluetoothSerial.h"
+
 
 //Bluetooth Serial instance
 BluetoothSerial SerialBT;
@@ -42,7 +42,6 @@ DHT dht(DHTPin, DHT22);
 void readSensors();
 void writeLEDs();
 void SerialPrints();
-void BluetoothComm();
 
 void setup() {
   Serial.begin(115200); // Start serial communication at 115200 baud rate
@@ -81,7 +80,6 @@ void loop() {
   readSensors();
   SerialPrints();
   //writeLEDs();
-  BluetoothComm();
 
 }
 
@@ -133,11 +131,3 @@ Serial.print("Humidity: ");
   Serial.println();
   }
 
-void BluetoothComm () {
-    if (Serial.available()) {
-    SerialBT.write(Serial.read()); // Send data from serial monitor to Bluetooth
-  }
-  if (SerialBT.available()) {
-    Serial.write(SerialBT.read()); // Send data from Bluetooth to serial monitor
-  }
-  }
