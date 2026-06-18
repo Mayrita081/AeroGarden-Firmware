@@ -12,8 +12,8 @@ const char* WIFI_SSID = "Mayra";
 const char* WIFI_PASS = "plilinli";
 
 // ── PIN DEFINITIONS ───────────────────────────────────────────────────────────
-const int PIN_RED[3]  = {17, 21, 25};
-const int PIN_BLUE[3] = {19, 23, 27};
+const int PIN_RED[3]  = {15, 21, 25};
+const int PIN_BLUE[3] = {2, 23, 27};
 
 const int CH_RED[3]   = {2, 4, 6};   // LEDC channels for Red
 const int CH_BLUE[3]  = {1, 3, 5};   // LEDC channels for Blue
@@ -21,7 +21,7 @@ const int CH_BLUE[3]  = {1, 3, 5};   // LEDC channels for Blue
 const int PUMP_PIN    = 5;
 const int DHT_PIN     = 32;
 const int DS18B20_PIN = 33;
-const int TEMT_PIN[4] = {36, 36, 36, 36};  // Update pins when wired separately
+const int TEMT_PIN[4] = {34, 34, 34, 34};  // Update pins when wired separately
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 int   floorQty          = 1;      // Active floors (1–3)
@@ -64,8 +64,8 @@ void setup() {
   for (int i = 0; i < floorQty; i++) {
     pinMode(PIN_RED[i],  OUTPUT);
     pinMode(PIN_BLUE[i], OUTPUT);
-    ledcSetup(CH_RED[i],  5000, 8);   // 5 kHz, 8-bit resolution
-    ledcSetup(CH_BLUE[i], 5000, 8);
+    ledcSetup(CH_RED[i],  1000, 8);   // 5 kHz, 8-bit resolution
+    ledcSetup(CH_BLUE[i], 1000, 8);
     ledcAttachPin(PIN_RED[i],  CH_RED[i]);
     ledcAttachPin(PIN_BLUE[i], CH_BLUE[i]);
   }
