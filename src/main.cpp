@@ -1,133 +1,295 @@
 #include <Arduino.h>
+#include <WiFi.h>
+#include <ESPAsyncWebServer.h>
+#include <LittleFS.h>
+#include <ArduinoJson.h>
 #include <DHT.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
+// ── WiFi Credentials ──────────────────────────────────────────────────────────
+const char* WIFI_SSID = "Mayra";
+const char* WIFI_PASS = "plilinli";
 
-//Bluetooth Serial instance
-BluetoothSerial SerialBT;
+// ── PIN DEFINITIONS ───────────────────────────────────────────────────────────
+const int PIN_RED[3]  = {17, 21, 25};
+const int PIN_BLUE[3] = {19, 23, 27};
 
-//PIN DEFINITIONS FOR LEDS & Water Pump
-const int pinRed[3] = {17, 21, 25}; // Pin for Red LED Floor 1
-const int pinBlue[3] = {19, 23, 27}; // Pin for Blue LED Floor 1
+const int CH_RED[3]   = {2, 4, 6};   // LEDC channels for Red
+const int CH_BLUE[3]  = {1, 3, 5};   // LEDC channels for Blue
 
-const int RedChannel[3] = {2, 4, 6}; // PWM channel for Red LED
-const int BlueChannel[3] = {1, 3, 5}; // PWM channel for Blue LED
+const int PUMP_PIN    = 5;
+const int DHT_PIN     = 32;
+const int DS18B20_PIN = 33;
+const int TEMT_PIN[4] = {36, 36, 36, 36};  // Update pins when wired separately
 
-int RedIntensity[3] = {0, 0, 0}; // Intensity for Red LED
-int BlueIntensity[3] = {0, 0, 0}; // Intensity for Blue LED
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+int   floorQty          = 1;      // Active floors (1–3)
+int   redIntensity[3]   = {0, 0, 0};
+int   blueIntensity[3]  = {0, 0, 0};
+bool  pumpState         = false;
+long  scheduleMinutes   = 0;      // 0 = no schedule
+unsigned long scheduleStart = 0;
 
-int FloorQty = 1; // Number of floors in the system
+// ── SENSOR VALUES ─────────────────────────────────────────────────────────────
+float humidity          = 0.0;
+float ambientTemp       = 0.0;
+float waterTemp         = 0.0;
+int   lightIntensity[4] = {0, 0, 0, 0};
 
-const int pumpPin = 5; // Pin for water pump
+// ── LIBRARY INSTANCES ─────────────────────────────────────────────────────────
+OneWire           oneWire(DS18B20_PIN);
+DallasTemperature tempSensors(&oneWire);
+DHT               dht(DHT_PIN, DHT22);
+AsyncWebServer    server(80);
 
-//PIN DEFINITIONS FOR SENSORS
-const int DHTPin = 32; // Pin for Ambient humidity and temperature sensor
-const int DS18B20Pin = 33; // Pin for water temperature sensor
-const int TEMT6000Pin[4] = {36, 36, 36, 36}; // Pin for ambient light sensor
+// ── FUNCTION PROTOTYPES ───────────────────────────────────────────────────────
+void     readSensors();
+void     writeLEDs();
+void     setPump(bool on);
+void     setupWiFi();
+void     setupFilesystem();
+void     setupRoutes();
+void     checkPumpSchedule();
+String   buildSensorJSON();
 
-// VARIABLES TO STORE SENSOR READINGS
-float humidity = 0.0;
-float temperatureC = 0.0;
-float waterTemperature = 0.0;
-int lightIntensity[4] = {0, 0, 0, 0};
-
-// Library instances
-OneWire oneWire(DS18B20Pin); // Setup OneWire for DS18B20
-DallasTemperature sensors(&oneWire); // Pass OneWire reference to DallasTemperature
-DHT dht(DHTPin, DHT22);
-
-
-//Function Prototypes
-void readSensors();
-void writeLEDs();
-void SerialPrints();
-
+// ─────────────────────────────────────────────────────────────────────────────
+//  SETUP
+// ─────────────────────────────────────────────────────────────────────────────
 void setup() {
-  Serial.begin(115200); // Start serial communication at 115200 baud rate
+  Serial.begin(115200);
+  Serial.println("\n[AeroGarden] Booting...");
 
-//Bluetooth Serial setup
-  SerialBT.begin("AeroGarden"); // Bluetooth device name
-  Serial.println("Dispositivo Bluetooth iniciado, esperando conexión...");
-// Set LED pins as OUTPUT
-  for (int i = 0; i <= FloorQty; i++){
-      pinMode(pinRed[i], OUTPUT);
-      pinMode(pinBlue[i], OUTPUT);
-      Serial.println(i);
+  // LED pins
+  for (int i = 0; i < floorQty; i++) {
+    pinMode(PIN_RED[i],  OUTPUT);
+    pinMode(PIN_BLUE[i], OUTPUT);
+    ledcSetup(CH_RED[i],  5000, 8);   // 5 kHz, 8-bit resolution
+    ledcSetup(CH_BLUE[i], 5000, 8);
+    ledcAttachPin(PIN_RED[i],  CH_RED[i]);
+    ledcAttachPin(PIN_BLUE[i], CH_BLUE[i]);
   }
-  for (int i = 0; i <= FloorQty; i++){
-      ledcAttachPin(pinRed[i], RedChannel[i]); // Attach Red LED pin to channel 0
-      ledcAttachPin(pinBlue[i], BlueChannel[i]); // Attach Blue LED pin to channel 1
-  }
-  
-  pinMode(pumpPin, OUTPUT); // Set water pump pin as OUTPUT
 
-  pinMode(DHTPin, INPUT); // Set DHT sensor pin as INPUT
-  pinMode(DS18B20Pin, INPUT); // Set DS18B20 sensor pin as INPUT
+  // Pump & sensors
+  pinMode(PUMP_PIN, OUTPUT);
+  digitalWrite(PUMP_PIN, LOW);
+
   for (int i = 0; i < 4; i++) {
-    pinMode(TEMT6000Pin[i], INPUT); // Set TEMT6000 sensor pin as INPUT
+    pinMode(TEMT_PIN[i], INPUT);
   }
 
-  //Initialize DHT sensor
   dht.begin();
+  tempSensors.begin();
 
-  // Initialize DS18B20 sensor
-  sensors.begin();
+  setupWiFi();
+  setupFilesystem();
+  setupRoutes();
+
+  server.begin();
+  Serial.println("[AeroGarden] Web server started.");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  LOOP
+// ─────────────────────────────────────────────────────────────────────────────
 void loop() {
-  // put your main code here, to run repeatedly:
-  readSensors();
-  SerialPrints();
-  //writeLEDs();
-
+  static unsigned long lastRead = 0;
+  if (millis() - lastRead >= 2000) {
+    readSensors();
+    lastRead = millis();
+  }
+  checkPumpSchedule();
 }
 
-// put function definitions here:
+// ─────────────────────────────────────────────────────────────────────────────
+//  WiFi
+// ─────────────────────────────────────────────────────────────────────────────
+void setupWiFi() {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  Serial.print("[WiFi] Connecting");
+  unsigned long t = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - t < 15000) {
+    delay(500);
+    Serial.print('.');
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n[WiFi] Connected: " + WiFi.localIP().toString());
+  } else {
+    Serial.println("\n[WiFi] Failed – starting AP mode.");
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP("AeroGarden-Setup", "aerogarden");
+    Serial.println("[WiFi] AP: AeroGarden-Setup | IP: " + WiFi.softAPIP().toString());
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Filesystem (LittleFS)
+// ─────────────────────────────────────────────────────────────────────────────
+void setupFilesystem() {
+  if (!LittleFS.begin(true)) {
+    Serial.println("[FS] LittleFS mount failed!");
+    return;
+  }
+  Serial.println("[FS] LittleFS mounted.");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Web Server Routes
+// ─────────────────────────────────────────────────────────────────────────────
+void setupRoutes() {
+
+  // ── Static files ──
+  server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
+
+  // ── GET /api/sensors → JSON snapshot ──
+  server.on("/api/sensors", HTTP_GET, [](AsyncWebServerRequest* req) {
+    req->send(200, "application/json", buildSensorJSON());
+  });
+
+  // ── POST handlers — parsed via onRequestBody (no extra library needed) ──
+  //
+  // onRequestBody fires after the full body is received, giving us the raw
+  // bytes. We parse JSON there and respond immediately.
+
+  server.onRequestBody([](AsyncWebServerRequest* req,
+                          uint8_t* data, size_t len,
+                          size_t index, size_t total) {
+
+    // Only handle when the full body has arrived
+    if (index + len != total) return;
+
+    StaticJsonDocument<256> doc;
+    DeserializationError err = deserializeJson(doc, data, len);
+    if (err) {
+      req->send(400, "application/json", "{\"error\":\"Bad JSON\"}");
+      return;
+    }
+
+    String url = req->url();
+
+    // ── /api/leds → { red: 0-255, blue: 0-255 } ──
+    if (url == "/api/leds" && req->method() == HTTP_POST) {
+      if (doc.containsKey("red") && doc.containsKey("blue")) {
+        int red  = constrain((int)doc["red"],  0, 255);
+        int blue = constrain((int)doc["blue"], 0, 255);
+        for (int i = 0; i < floorQty; i++) {
+          redIntensity[i]  = red;
+          blueIntensity[i] = blue;
+        }
+        writeLEDs();
+        req->send(200, "application/json", "{\"ok\":true}");
+      } else {
+        req->send(400, "application/json", "{\"error\":\"Missing fields\"}");
+      }
+    }
+
+    // ── /api/pump → { state: 0|1 } ──
+    else if (url == "/api/pump" && req->method() == HTTP_POST) {
+      if (doc.containsKey("state")) {
+        setPump((int)doc["state"] == 1);
+        req->send(200, "application/json", "{\"ok\":true}");
+      } else {
+        req->send(400, "application/json", "{\"error\":\"Missing state\"}");
+      }
+    }
+
+    // ── /api/pump/schedule → { minutes: N } ──
+    else if (url == "/api/pump/schedule" && req->method() == HTTP_POST) {
+      if (doc.containsKey("minutes")) {
+        scheduleMinutes = (int)doc["minutes"];
+        scheduleStart   = millis();
+        req->send(200, "application/json", "{\"ok\":true}");
+      } else {
+        req->send(400, "application/json", "{\"error\":\"Missing minutes\"}");
+      }
+    }
+
+    // ── /api/settings → { floors: N } ──
+    else if (url == "/api/settings" && req->method() == HTTP_POST) {
+      if (doc.containsKey("floors")) {
+        floorQty = constrain((int)doc["floors"], 1, 3);
+      }
+      req->send(200, "application/json", "{\"ok\":true}");
+    }
+  });
+
+  // ── 404 fallback ──
+  server.onNotFound([](AsyncWebServerRequest* req) {
+    req->send(404, "text/plain", "Not found");
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Build JSON sensor payload
+// ─────────────────────────────────────────────────────────────────────────────
+String buildSensorJSON() {
+  StaticJsonDocument<512> doc;
+  doc["humidity"]    = isnan(humidity)    ? 0 : roundf(humidity * 10) / 10.0f;
+  doc["ambientTemp"] = isnan(ambientTemp) ? 0 : roundf(ambientTemp * 10) / 10.0f;
+  doc["waterTemp"]   = waterTemp < -50    ? 0 : roundf(waterTemp * 10) / 10.0f;
+  doc["pump"]        = pumpState ? 1 : 0;
+  doc["uptime"]      = (unsigned long)(millis() / 1000UL);
+  doc["ip"]          = (WiFi.status() == WL_CONNECTED)
+                          ? WiFi.localIP().toString()
+                          : WiFi.softAPIP().toString();
+
+  JsonArray light = doc.createNestedArray("light");
+  for (int i = 0; i < 4; i++) light.add(lightIntensity[i]);
+
+  String out;
+  serializeJson(doc, out);
+  return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Read Sensors
+// ─────────────────────────────────────────────────────────────────────────────
 void readSensors() {
-  
-  // Read humidity
-  humidity = dht.readHumidity();
-  
-  // Read temperature in Celsius
-  temperatureC = dht.readTemperature();
+  humidity    = dht.readHumidity();
+  ambientTemp = dht.readTemperature();
 
-  // Read water temperature from DS18B20 sensor
-  sensors.requestTemperatures(); // Send command to get temperatures
-  waterTemperature = sensors.getTempCByIndex(0);
+  tempSensors.requestTemperatures();
+  waterTemp = tempSensors.getTempCByIndex(0);
 
-  // Read ambient light intensity from TEMT6000 sensor
   for (int i = 0; i < 4; i++) {
-    lightIntensity[i] = analogRead(TEMT6000Pin[i]);
+    lightIntensity[i] = analogRead(TEMT_PIN[i]);
   }
 
+  // Debug output
+  Serial.printf("[Sensors] H:%.1f%% T:%.1f°C W:%.1f°C L:%d,%d,%d,%d\n",
+    humidity, ambientTemp, waterTemp,
+    lightIntensity[0], lightIntensity[1], lightIntensity[2], lightIntensity[3]);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  Write LEDs via LEDC PWM
+// ─────────────────────────────────────────────────────────────────────────────
 void writeLEDs() {
-  // Example logic to control LEDs based on sensor readings
-  for (int i = 0; i < FloorQty; i++) {
-    // Control Red LED based on temperature
-    ledcWrite(RedChannel[i], RedIntensity[i]); 
-    ledcWrite(BlueChannel[i], BlueIntensity[i]);
-}
+  for (int i = 0; i < floorQty; i++) {
+    ledcWrite(CH_RED[i],  redIntensity[i]);
+    ledcWrite(CH_BLUE[i], blueIntensity[i]);
+  }
 }
 
-void SerialPrints() {
-Serial.print("Humidity: ");
-  Serial.print(humidity);
-  Serial.print(" %\t");
-  Serial.print("Temperature: ");
-  Serial.print(temperatureC);
-  Serial.print(" °C\t");
-  Serial.print("Light Intensity: ");
-  for (int i = 0; i < 4; i++) {
-    Serial.print(lightIntensity[i]);
-    if (i < 3) Serial.print(", ");
-  }
-  Serial.print("\t");
-  Serial.print("Water Temperature: ");
-  Serial.print(waterTemperature);
-  Serial.print(" °C");
-  Serial.println();
-  }
+// ─────────────────────────────────────────────────────────────────────────────
+//  Pump control
+// ─────────────────────────────────────────────────────────────────────────────
+void setPump(bool on) {
+  pumpState = on;
+  digitalWrite(PUMP_PIN, on ? HIGH : LOW);
+  Serial.printf("[Pump] %s\n", on ? "ON" : "OFF");
+}
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  Pump schedule check (runs in loop)
+// ─────────────────────────────────────────────────────────────────────────────
+void checkPumpSchedule() {
+  if (scheduleMinutes <= 0) return;
+  unsigned long elapsed = (millis() - scheduleStart) / 60000UL; // minutes
+  if (elapsed >= (unsigned long)scheduleMinutes) {
+    Serial.println("[Pump] Schedule elapsed – turning ON");
+    setPump(true);
+    scheduleMinutes = 0;
+  }
+}
