@@ -12,16 +12,16 @@ const char* WIFI_SSID = "Mayra";
 const char* WIFI_PASS = "plilinli";
 
 // ── PIN DEFINITIONS ───────────────────────────────────────────────────────────
-const int PIN_RED[3]  = {15, 21, 25};
+const int PIN_RED[3]  = {15, 21, 39};
 const int PIN_BLUE[3] = {2, 23, 27};
 
 const int CH_RED[3]   = {2, 4, 6};   // LEDC channels for Red
 const int CH_BLUE[3]  = {1, 3, 5};   // LEDC channels for Blue
 
 const int PUMP_PIN    = 5;
-const int DHT_PIN     = 32;
-const int DS18B20_PIN = 33;
-const int TEMT_PIN[4] = {34, 34, 34, 34};  // Update pins when wired separately
+const int DHT_PIN     = 33;
+const int DS18B20_PIN = 25;
+const int TEMT_PIN[4] = {35, 34, 39, 36};  // Update pins when wired separately
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 int   floorQty          = 1;      // Active floors (1–3)
@@ -77,7 +77,7 @@ void setup() {
   for (int i = 0; i < 4; i++) {
     pinMode(TEMT_PIN[i], INPUT);
   }
-
+  pinMode(waterTemp, INPUT);
   dht.begin();
   tempSensors.begin();
 
