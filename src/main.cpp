@@ -41,7 +41,7 @@ Color sectionOutput[LIGHT_SENSOR_COUNT] = {};
 int actualRed = 0, actualBlue = 0;
 float humidity = NAN, ambientTemp = NAN, waterTemp = NAN;
 int lightIntensity[4] = {};
-String wifiSSID, wifiPassword, wifiStatus = "Not configured";
+String wifiSSID, wifiPassword, wifiStatus = "Sin configurar";
 String wifiMode = "setup", wifiError;
 bool wifiPending = false, wifiAttempting = false;
 uint32_t wifiStart = 0, wifiApplyAt = 0;
@@ -108,17 +108,17 @@ String snapshot() {
 }
 bool integer(JsonVariant v, int low, int high) { return v.is<int>() && v.as<int>() >= low && v.as<int>() <= high; }
 void bad(AsyncWebServerRequest* req, const char* message) {
-  StaticJsonDocument<192> doc; doc["error"] = message;
+  StaticJsonDocument<384> doc; doc["error"] = message;
   String out; serializeJson(doc, out); req->send(400, "application/json", out);
 }
 void ok(AsyncWebServerRequest* req) { req->send(200, "application/json", snapshot()); }
 void post(const char* path, ArJsonRequestHandlerFunction callback) {
   auto handler = new AsyncCallbackJsonWebHandler(path, [callback, path](AsyncWebServerRequest* req, JsonVariant& json) {
     if (req->url() != path) { req->send(404); return; }
-    if (!json.is<JsonObject>()) { bad(req, "Expected a JSON object"); return; }
+    if (!json.is<JsonObject>()) { bad(req, "Se esperaba un objeto JSON"); return; }
     StateLock lock;
     if (req->url() != "/api/wifi" && wifiMode != "ready") {
-      req->send(409, "application/json", "{\"error\":\"Complete Wi-Fi setup first\"}"); return;
+      req->send(409, "application/json", "{\"error\":\"Primero completá la configuración Wi-Fi\"}"); return;
     }
     callback(req, json);
   });
@@ -134,38 +134,38 @@ void setupRoutes() {
   post("/api/leds/schedule", [](AsyncWebServerRequest* req, JsonVariant& j) {
     if (!j["enabled"].is<bool>() || !integer(j["startMinute"], 0, 1439) ||
         !integer(j["endMinute"], 0, 1439) || !integer(j["utcOffsetMinutes"], -720, 840)) {
-      bad(req, "Choose valid start/end times and a UTC offset from -720 to 840 minutes"); return;
+      bad(req, "Elegí horas válidas y una diferencia con UTC de entre -720 y 840 minutos"); return;
     }
     DailyLightSchedule next;
     next.enabled = j["enabled"]; next.startMinute = j["startMinute"]; next.endMinute = j["endMinute"];
     next.utcOffsetMinutes = j["utcOffsetMinutes"];
-    if (!next.valid()) { bad(req, "Start and end times must be different"); return; }
+    if (!next.valid()) { bad(req, "Las horas de inicio y fin deben ser distintas"); return; }
     StaticJsonDocument<256> saved;
     saved["enabled"] = next.enabled; saved["startMinute"] = next.startMinute;
     saved["endMinute"] = next.endMinute; saved["utcOffsetMinutes"] = next.utcOffsetMinutes;
     String encoded; serializeJson(saved, encoded);
     if (prefs.putString("ledSchedule", encoded) != encoded.length()) {
-      req->send(500, "application/json", "{\"error\":\"Unable to save LED schedule\"}"); return;
+      req->send(500, "application/json", "{\"error\":\"No se pudo guardar el horario LED\"}"); return;
     }
     ledSchedule = next; writeLEDs(); ok(req);
   });
   post("/api/time", [](AsyncWebServerRequest* req, JsonVariant& j) {
     if (!j["epoch"].is<int64_t>() || j["epoch"].as<int64_t>() < 1704067200LL ||
         j["epoch"].as<int64_t>() > 4102444799LL) {
-      bad(req, "Provide a valid UTC timestamp between 2024 and 2099"); return;
+      bad(req, "Ingresá una fecha UTC válida entre 2024 y 2099"); return;
     }
     timeval tv = {}; tv.tv_sec = j["epoch"].as<int64_t>();
     if (settimeofday(&tv, nullptr) != 0) {
-      req->send(500, "application/json", "{\"error\":\"Unable to set device clock\"}"); return;
+      req->send(500, "application/json", "{\"error\":\"No se pudo configurar el reloj\"}"); return;
     }
     writeLEDs(); ok(req);
   });
   post("/api/leds", [](AsyncWebServerRequest* req, JsonVariant& j) {
     if (!integer(j["red"], 0, 255) || !integer(j["blue"], 0, 255) || !j["autoLight"].is<bool>() || !integer(j["lightTarget"], 1, 100)) {
-      bad(req, "Set red/blue to 0-255 and light target to 1-100"); return;
+      bad(req, "Ajustá rojo y azul entre 0 y 255, y el objetivo de luz entre 1 y 100"); return;
     }
     if (j["autoLight"].as<bool>() && j["red"].as<int>() + j["blue"].as<int>() == 0) {
-      bad(req, "Choose a nonzero color mix for automatic light"); return;
+      bad(req, "Elegí una mezcla de color distinta de cero para la iluminación automática"); return;
     }
     redIntensity = j["red"]; blueIntensity = j["blue"];
     autoLight = j["autoLight"]; lightTarget = j["lightTarget"];
@@ -178,44 +178,44 @@ void setupRoutes() {
     else if (mode == "timer" && integer(j["minutes"], 1, 10080)) pump.timer(j["minutes"], millis());
     else if (mode == "cycle" && integer(j["onMinutes"], 1, 10080) && integer(j["offMinutes"], 1, 10080))
       pump.cycle(j["onMinutes"], j["offMinutes"], millis());
-    else { bad(req, "Use timer or cycle with durations of 1-10080 minutes"); return; }
+    else { bad(req, "Usá un temporizador o ciclo con duraciones de entre 1 y 10080 minutos"); return; }
     writePump(); saveControls(); ok(req);
   });
   post("/api/pump", [](AsyncWebServerRequest* req, JsonVariant& j) {
-    if (!integer(j["state"], 0, 1)) { bad(req, "State must be 0 or 1"); return; }
+    if (!integer(j["state"], 0, 1)) { bad(req, "El estado debe ser 0 o 1"); return; }
     pump.manual(j["state"].as<int>() == 1); writePump(); saveControls(); ok(req);
   });
   post("/api/settings", [](AsyncWebServerRequest* req, JsonVariant& j) {
-    if (!integer(j["floors"], 1, MAX_FLOORS)) { bad(req, "Floors must be 1-3"); return; }
+    if (!integer(j["floors"], 1, MAX_FLOORS)) { bad(req, "La cantidad de pisos debe ser de 1 a 3"); return; }
     activeFloors = j["floors"]; writeLEDs(); saveControls(); ok(req);
   });
   post("/api/wifi", [](AsyncWebServerRequest* req, JsonVariant& j) {
     if (wifiMode == "connecting") {
-      req->send(409, "application/json", "{\"error\":\"Connection attempt already in progress\"}"); return;
+      req->send(409, "application/json", "{\"error\":\"Ya hay un intento de conexión en curso\"}"); return;
     }
-    if (!j["ssid"].is<const char*>() || !j["password"].is<const char*>()) { bad(req, "SSID and password required"); return; }
+    if (!j["ssid"].is<const char*>() || !j["password"].is<const char*>()) { bad(req, "Se requieren el nombre de la red y la contraseña"); return; }
     String ssid = j["ssid"], password = j["password"];
     if (ssid.length() < 1 || ssid.length() > 32 || (password.length() != 0 && (password.length() < 8 || password.length() > 63))) {
-      bad(req, "SSID: 1-32 bytes; password: 8-63 bytes, or empty for an open network"); return;
+      bad(req, "Nombre de red: 1–32 bytes; contraseña: 8–63 bytes, o vacía si la red es abierta"); return;
     }
     // Persist before connecting; failed attempts return to a clean setup flow.
     prefs.remove("ssid");
     prefs.putString("password", password); prefs.putString("ssid", ssid);
     if (prefs.getString("ssid", "") != ssid || prefs.getString("password", "") != password) {
       prefs.remove("ssid"); prefs.remove("password");
-      req->send(500, "application/json", "{\"error\":\"Unable to save credentials. Please retry.\"}"); return;
+      req->send(500, "application/json", "{\"error\":\"No se pudieron guardar los datos de conexión. Volvé a intentarlo.\"}"); return;
     }
     wifiMode = "connecting"; wifiError = "";
     wifiSSID = ssid; wifiPassword = password;
-    wifiPending = true; wifiApplyAt = millis(); wifiStatus = "Connecting"; ok(req);
+    wifiPending = true; wifiApplyAt = millis(); wifiStatus = "Conectando"; ok(req);
   });
   server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html").setCacheControl("no-cache");
-  server.onNotFound([](AsyncWebServerRequest* req) { req->send(404, "application/json", "{\"error\":\"Not found\"}"); });
+  server.onNotFound([](AsyncWebServerRequest* req) { req->send(404, "application/json", "{\"error\":\"No encontrado\"}"); });
 }
 void beginConnection() {
   wifiMode = "connecting"; wifiError = "";
   WiFi.disconnect(false); WiFi.begin(wifiSSID.c_str(), wifiPassword.c_str());
-  wifiStart = millis(); wifiAttempting = true; wifiPending = false; wifiStatus = "Connecting";
+  wifiStart = millis(); wifiAttempting = true; wifiPending = false; wifiStatus = "Conectando";
 }
 void setup() {
   Serial.begin(115200); stateMutex = xSemaphoreCreateMutex();
@@ -268,7 +268,7 @@ void loop() {
     if (lightAllowed(time(nullptr)) != lastLightAllowed) writeLEDs();
     if (wifiPending && uint32_t(now - wifiApplyAt) >= 500) beginConnection();
     if (!wifiPending && wifiAttempting && WiFi.status() == WL_CONNECTED) {
-      wifiAttempting = false; wifiStatus = "Connected"; wifiMode = "ready";
+      wifiAttempting = false; wifiStatus = "Conectado"; wifiMode = "ready";
       if (!ntpStarted) {
         // SNTP syncs asynchronously; all scheduling uses UTC plus the saved offset.
         configTime(0, 0, "pool.ntp.org", "time.google.com"); ntpStarted = true;
@@ -278,9 +278,9 @@ void loop() {
       prefs.remove("ssid"); prefs.remove("password");
       wifiSSID = ""; wifiPassword = "";
       wifiPending = false; wifiAttempting = false; wifiMode = "setup";
-      wifiStatus = "Not configured";
-      wifiError = "Could not connect. Check the network name and password, then try again.";
-    } else if (!wifiPending && !wifiAttempting && wifiStatus == "Connected" && WiFi.status() != WL_CONNECTED) beginConnection();
+      wifiStatus = "Sin configurar";
+      wifiError = "No se pudo conectar. Revisá el nombre de la red y la contraseña y volvé a intentarlo.";
+    } else if (!wifiPending && !wifiAttempting && wifiStatus == "Conectado" && WiFi.status() != WL_CONNECTED) beginConnection();
   }
   static uint32_t lastSensor = 0;
   if (uint32_t(now - lastSensor) >= 2000) {

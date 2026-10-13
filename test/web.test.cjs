@@ -123,13 +123,13 @@ test('missing wifiMode shows a usable form and an update message',()=>{
  h.context.updateUI(old);
  assert.equal(h.elements.get('setup-form').hidden,false);
  assert.equal(h.elements.get('garden-hub').hidden,true);
- assert.match(h.elements.get('setup-error').textContent,/firmware and filesystem/);
+ assert.match(h.elements.get('setup-error').textContent,/firmware y el sistema de archivos/);
 });
 test('failed first status request exposes setup and allows polling to recover',async()=>{
  const h=harness(); h.setHandler(async()=>{throw new Error('Offline');});
  await h.context.fetchSensors();
  assert.equal(h.elements.get('setup-form').hidden,false);
- assert.match(h.elements.get('setup-error').textContent,/Cannot read device status/);
+ assert.match(h.elements.get('setup-error').textContent,/No se puede consultar el estado/);
  h.setHandler(async()=>state); await h.context.fetchSensors();
  assert.equal(h.elements.get('garden-hub').hidden,false);
 });
@@ -153,9 +153,9 @@ test('LED overnight times accepted, equal or invalid times rejected',async()=>{
 test('saved LED schedule restores once and polling preserves unsaved edits',()=>{
  const h=harness();const scheduled={...state,ledScheduleEnabled:true,ledStartMinute:1080,ledEndMinute:360,utcOffsetMinutes:-180,clockValid:false};
  h.context.updateUI(scheduled);assert.equal(h.elements.get('led-start').value,'18:00');
- assert.match(h.elements.get('led-schedule-status').textContent,/remain OFF/);
+ assert.match(h.elements.get('led-schedule-status').textContent,/permanecen apagados/);
  h.elements.get('led-start').value='19:00';h.context.updateUI(scheduled);assert.equal(h.elements.get('led-start').value,'19:00');
- h.context.updateUI({...scheduled,clockValid:true,localMinute:0,ledWindowActive:true});assert.match(h.elements.get('led-schedule-status').textContent,/ON period/);
+ h.context.updateUI({...scheduled,clockValid:true,localMinute:0,ledWindowActive:true});assert.match(h.elements.get('led-schedule-status').textContent,/Período de encendido/);
 });
 test('browser clock synchronization sends UTC epoch without shifting timezone',async()=>{
  const h=harness();const before=Math.floor(Date.now()/1000);await h.context.syncClock(null);
@@ -166,7 +166,7 @@ test('browser clock synchronization sends UTC epoch without shifting timezone',a
 test('LED output reports each independent sensor section',()=>{
  const h=harness();h.context.updateUI({...state,sectionOutput:[{red:255,blue:128},{red:128,blue:64},{red:0,blue:0},{red:64,blue:32}]});
  const text=h.elements.get('light-output').textContent;
- assert.match(text,/Sensor 1 sections: red 100%, blue 50%/);
- assert.match(text,/Sensor 3 sections: red 0%, blue 0%/);
- assert.match(text,/Sensor 4 sections:/);
+ assert.match(text,/Sensor 1 · secciones: rojo 100%, azul 50%/);
+ assert.match(text,/Sensor 3 · secciones: rojo 0%, azul 0%/);
+ assert.match(text,/Sensor 4 · secciones:/);
 });

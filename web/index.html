@@ -1,22 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es-AR">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AeroGarden Connect</title>
+  <title>AeroGarden | Panel de control</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <section id="wifi-setup" class="wifi-setup" aria-label="Wi-Fi configuration">
-    <div class="setup-heading"><span>Configuration</span><h2>Your Garden</h2></div>
-    <div class="setup-intro"><h1>Configure your Wi-Fi connection</h1><p>Enter your home Wi-Fi credentials to access your AeroGarden Hub.</p></div>
-    <p id="setup-progress" class="setup-progress" role="status">Checking your AeroGarden…</p>
+  <section id="wifi-setup" class="wifi-setup" aria-label="Configuración de Wi-Fi">
+    <div class="setup-heading"><span>Configuración</span><h2>Tu jardín</h2></div>
+    <div class="setup-intro"><h1>Configurá tu conexión Wi-Fi</h1><p>Ingresá los datos de tu red Wi-Fi para acceder al panel de AeroGarden.</p></div>
+    <p id="setup-progress" class="setup-progress" role="status">Comprobando tu AeroGarden…</p>
     <form id="setup-form" onsubmit="saveSetupWiFi(event, this)">
-      <fieldset class="setup-field"><legend><label for="setup-ssid">SSID</label></legend><input id="setup-ssid" placeholder="your-home-ssid" maxlength="32" required autocomplete="off" autocapitalize="none" spellcheck="false"></fieldset>
-      <fieldset class="setup-field"><legend><label for="setup-password">Password</label></legend><input id="setup-password" type="password" placeholder="your-password" maxlength="63" autocomplete="new-password"></fieldset>
-      <p class="setup-note">Leave the password empty only for an open network.</p>
+      <fieldset class="setup-field"><legend><label for="setup-ssid">SSID</label></legend><input id="setup-ssid" placeholder="nombre-de-tu-red" maxlength="32" required autocomplete="off" autocapitalize="none" spellcheck="false"></fieldset>
+      <fieldset class="setup-field"><legend><label for="setup-password">Contraseña</label></legend><input id="setup-password" type="password" placeholder="tu-contraseña" maxlength="63" autocomplete="new-password"></fieldset>
+      <p class="setup-note">Dejá la contraseña vacía solo si la red es abierta.</p>
       <p id="setup-error" class="setup-error" role="alert"></p>
-      <div class="setup-actions"><button id="setup-save" type="submit">Save</button></div>
+      <div class="setup-actions"><button id="setup-save" type="submit">Guardar</button></div>
     </form>
   </section>
   <div id="garden-hub" class="garden-hub" hidden>
@@ -28,9 +28,9 @@
         <div class="logo-inner">🌿</div>
       </div>
       <div class="hub-info">
-        <span class="connected-label">● Connected</span>
-        <h2>Your Garden</h2>
-        <p>This is your hub.</p>
+        <span class="connected-label">● Conectado</span>
+        <h2>Tu jardín</h2>
+        <p>Este es tu panel de control.</p>
       </div>
     </div>
   </header>
@@ -41,11 +41,11 @@
     <!-- ── MONITORING PAGE ── -->
     <section id="page-monitoring" class="page active">
 
-      <!-- Light Sensors -->
+      <!-- Sensores de luz -->
       <div class="sensor-group" id="group-light">
         <div class="sensor-group-header" onclick="toggleGroup('group-light')">
           <div class="sensor-icon light-icon">💡</div>
-          <span>Light Sensors</span>
+          <span>Sensores de luz</span>
           <div class="sensor-badge" id="badge-light">–</div>
           <span class="chevron">›</span>
         </div>
@@ -69,45 +69,45 @@
         </div>
       </div>
 
-      <!-- Temperature Sensors -->
+      <!-- Sensores de temperatura -->
       <div class="sensor-group" id="group-temp">
         <div class="sensor-group-header" onclick="toggleGroup('group-temp')">
           <div class="sensor-icon temp-icon">🌡️</div>
-          <span>Temperature Sensors</span>
+          <span>Sensores de temperatura</span>
           <div class="sensor-badge" id="badge-temp">–</div>
           <span class="chevron">›</span>
         </div>
         <div class="sensor-group-body">
           <div class="sensor-row">
-            <span class="sensor-label">Water Temperature</span>
+            <span class="sensor-label">Temperatura del agua</span>
             <div class="bar-track"><div class="bar-fill" id="bar-water-temp"></div></div>
           </div>
           <div class="sensor-row">
-            <span class="sensor-label">Ambient Temperature</span>
+            <span class="sensor-label">Temperatura ambiente</span>
             <div class="bar-track"><div class="bar-fill" id="bar-ambient-temp"></div></div>
           </div>
           <div class="sensor-values">
-            <span>Water: <strong id="val-water-temp">–</strong> °C</span>
-            <span>Ambient: <strong id="val-ambient-temp">–</strong> °C</span>
+            <span>Agua: <strong id="val-water-temp">–</strong> °C</span>
+            <span>Ambiente: <strong id="val-ambient-temp">–</strong> °C</span>
           </div>
         </div>
       </div>
 
-      <!-- Humidity Sensors -->
+      <!-- Sensores de humedad -->
       <div class="sensor-group" id="group-humidity">
         <div class="sensor-group-header" onclick="toggleGroup('group-humidity')">
           <div class="sensor-icon humidity-icon">💧</div>
-          <span>Humidity Sensors</span>
+          <span>Sensores de humedad</span>
           <div class="sensor-badge" id="badge-humidity">–</div>
           <span class="chevron">›</span>
         </div>
         <div class="sensor-group-body">
           <div class="sensor-row">
-            <span class="sensor-label">Humidity %</span>
+            <span class="sensor-label">Humedad (%)</span>
             <div class="bar-track"><div class="bar-fill" id="bar-humidity"></div></div>
           </div>
           <div class="sensor-values">
-            <span>Humidity: <strong id="val-humidity">–</strong> %</span>
+            <span>Humedad: <strong id="val-humidity">–</strong> %</span>
           </div>
         </div>
       </div>
@@ -118,42 +118,42 @@
     <section id="page-control" class="page">
 
       <div class="tab-bar">
-        <button class="tab-btn active" onclick="switchTab('led', this)">LED Control</button>
-        <button class="tab-btn" onclick="switchTab('pump', this)">Pump</button>
+        <button class="tab-btn active" onclick="switchTab('led', this)">Control LED</button>
+        <button class="tab-btn" onclick="switchTab('pump', this)">Bomba</button>
       </div>
 
       <!-- LED Tab -->
       <div id="tab-led" class="tab-content active">
         <div class="control-card control-layout">
           <div class="control-panel">
-          <p class="control-label">Red LEDs</p>
+          <p class="control-label">LED rojos</p>
           <div class="led-slider-row">
             <input type="range" min="0" max="255" value="0" class="led-slider red-slider" id="slider-red-0"
               oninput="updateSliderPreview(this, 'red')">
           </div>
-          <p class="control-label" style="margin-top:1.5rem">Blue LEDs</p>
+          <p class="control-label" style="margin-top:1.5rem">LED azules</p>
           <div class="led-slider-row">
             <input type="range" min="0" max="255" value="0" class="led-slider blue-slider" id="slider-blue-0"
               oninput="updateSliderPreview(this, 'blue')">
           </div>
-          <div class="setting-row"><label for="auto-light">Automatic light</label><input type="checkbox" id="auto-light"></div>
-          <div class="setting-row"><label for="light-target">Ambient light target (%)</label><input class="setting-input" type="number" id="light-target" min="1" max="100" value="50"></div>
-          <p class="help">In automatic mode, each sensor dims its matching 32-LED section on every active floor. Darkness gives full brightness; ambient light at or above the target turns that section off. The sliders set the red/blue ratio.</p>
+          <div class="setting-row"><label for="auto-light">Iluminación automática</label><input type="checkbox" id="auto-light"></div>
+          <div class="setting-row"><label for="light-target">Objetivo de luz ambiente (%)</label><input class="setting-input" type="number" id="light-target" min="1" max="100" value="50"></div>
+          <p class="help">En modo automático, cada sensor regula su sección de 32 LED en todos los pisos activos. En la oscuridad, el brillo es máximo; cuando la luz ambiente alcanza o supera el objetivo, esa sección se apaga. Los controles ajustan la proporción de rojo y azul.</p>
           <p class="help" id="light-output"></p>
-          <button class="save-btn" onclick="saveLEDs(this)">Save lights</button>
+          <button class="save-btn" onclick="saveLEDs(this)">Guardar iluminación</button>
           </div>
           <div class="schedule-box">
-            <p class="schedule-title">Daily LED schedule</p>
-            <div class="setting-row"><label for="led-schedule-enabled">Enable daily schedule</label><input type="checkbox" id="led-schedule-enabled"></div>
-            <div class="setting-row"><label for="led-start">Turn on at</label><input class="schedule-time" type="time" id="led-start" value="06:00" required></div>
-            <div class="setting-row"><label for="led-end">Turn off at</label><input class="schedule-time" type="time" id="led-end" value="18:00" required></div>
-            <div class="setting-row"><label for="led-offset">UTC offset (minutes)</label><input class="setting-input" type="number" id="led-offset" min="-720" max="840" value="-180"></div>
-            <p class="help">Argentina: −180 (UTC−03:00). Repeats every day, including overnight ranges. Adjust the offset if your region changes clocks.</p>
-            <p class="help">Uses your saved color and Auto Light settings during the ON period. Outside it, all LEDs stay off.</p>
+            <p class="schedule-title">Horario diario de los LED</p>
+            <div class="setting-row"><label for="led-schedule-enabled">Activar horario diario</label><input type="checkbox" id="led-schedule-enabled"></div>
+            <div class="setting-row"><label for="led-start">Encender a las</label><input class="schedule-time" type="time" id="led-start" value="06:00" required></div>
+            <div class="setting-row"><label for="led-end">Apagar a las</label><input class="schedule-time" type="time" id="led-end" value="18:00" required></div>
+            <div class="setting-row"><label for="led-offset">Diferencia con UTC (minutos)</label><input class="setting-input" type="number" id="led-offset" min="-720" max="840" value="-180"></div>
+            <p class="help">Argentina: −180 (UTC−03:00). Se repite todos los días y admite horarios que cruzan la medianoche. Ajustá la diferencia si cambia la hora en tu región.</p>
+            <p class="help">Durante el período de encendido se usan el color y la iluminación automática guardados. Fuera de ese horario, todos los LED permanecen apagados.</p>
             <p class="help" id="led-clock-status" role="status"></p>
             <p class="help" id="led-schedule-status" role="status"></p>
-            <button class="save-btn" onclick="saveLEDSchedule(this)">Save LED schedule</button>
-            <button class="sched-ok" onclick="syncClock(this)">Use this device’s time</button>
+            <button class="save-btn" onclick="saveLEDSchedule(this)">Guardar horario LED</button>
+            <button class="sched-ok" onclick="syncClock(this)">Usar la hora de este dispositivo</button>
           </div>
         </div>
       </div>
@@ -163,7 +163,7 @@
         <div class="control-card control-layout">
           <div class="control-panel">
           <div class="pump-row">
-            <span class="pump-label">Water Pump</span>
+            <span class="pump-label">Bomba de agua</span>
             <label class="toggle-switch">
               <input type="checkbox" id="pump-toggle" onchange="togglePump(this)">
               <span class="toggle-track"></span>
@@ -171,34 +171,34 @@
           </div>
 
           <p class="help" id="pump-status" aria-live="polite"></p>
-          <button class="sched-ok" onclick="openSchedule()">Schedule next switch</button>
-          <button class="sched-cancel" onclick="cancelSchedule(this)">Stop schedule</button>
+          <button class="sched-ok" onclick="openSchedule()">Programar próximo cambio</button>
+          <button class="sched-cancel" onclick="cancelSchedule(this)">Cancelar programación</button>
           <div id="pump-schedule" class="schedule-box hidden">
-            <p class="schedule-title">Schedule</p>
-            <p class="schedule-sub" id="schedule-direction">Turn on again in</p>
+            <p class="schedule-title">Programación</p>
+            <p class="schedule-sub" id="schedule-direction">Volver a encender en</p>
             <div class="time-picker">
               <div class="time-field">
                 <input type="number" id="sched-hours" min="0" max="168" value="20" placeholder="00">
-                <label>Hour</label>
+                <label>Horas</label>
               </div>
               <span class="time-sep">:</span>
               <div class="time-field">
                 <input type="number" id="sched-mins" min="0" max="59" value="00" placeholder="00">
-                <label>Minute</label>
+                <label>Minutos</label>
               </div>
             </div>
             <div class="schedule-actions">
-              <button class="sched-cancel" onclick="closeSchedule()">Cancel</button>
-              <button class="sched-ok" onclick="confirmSchedule(this)">OK</button>
+              <button class="sched-cancel" onclick="closeSchedule()">Cancelar</button>
+              <button class="sched-ok" onclick="confirmSchedule(this)">Aceptar</button>
             </div>
           </div>
           </div>
           <div class="schedule-box">
-            <p class="schedule-title">Automatic pump cycle</p>
-            <div class="setting-row"><label for="cycle-on">On for (minutes)</label><input class="setting-input" type="number" id="cycle-on" min="1" max="10080" value="5"></div>
-            <div class="setting-row"><label for="cycle-off">Off for (minutes)</label><input class="setting-input" type="number" id="cycle-off" min="1" max="10080" value="5"></div>
-            <p class="help">Repeats from the current pump state. A manual switch stops the schedule.</p>
-            <button class="save-btn" onclick="saveCycle(this)">Start automatic cycle</button>
+            <p class="schedule-title">Ciclo automático de la bomba</p>
+            <div class="setting-row"><label for="cycle-on">Encendida durante (minutos)</label><input class="setting-input" type="number" id="cycle-on" min="1" max="10080" value="5"></div>
+            <div class="setting-row"><label for="cycle-off">Apagada durante (minutos)</label><input class="setting-input" type="number" id="cycle-off" min="1" max="10080" value="5"></div>
+            <p class="help">Se repite desde el estado actual de la bomba. Un cambio manual cancela la programación.</p>
+            <button class="save-btn" onclick="saveCycle(this)">Iniciar ciclo automático</button>
           </div>
         </div>
       </div>
@@ -208,34 +208,34 @@
     <!-- ── SETTINGS PAGE ── -->
     <section id="page-settings" class="page">
       <div class="settings-card">
-        <h3>Settings</h3>
+        <h3>Ajustes</h3>
         <div class="setting-row">
-          <span>Number of Floors</span>
+          <span>Cantidad de pisos</span>
           <input type="number" id="setting-floors" min="1" max="3" value="1" class="setting-input">
         </div>
         <div class="setting-row">
-          <span>Refresh Rate (s)</span>
+          <span>Intervalo de actualización (s)</span>
           <input type="number" id="setting-refresh" min="1" max="60" value="5" class="setting-input">
         </div>
-        <button class="save-btn" onclick="saveSettings(this)">Save Settings</button>
+        <button class="save-btn" onclick="saveSettings(this)">Guardar ajustes</button>
       </div>
       <div class="settings-card">
-        <h3>Wi-Fi network</h3>
+        <h3>Red Wi-Fi</h3>
         <form onsubmit="saveWiFi(event, this)">
-          <label class="wifi-label" for="wifi-ssid">Network name (SSID)</label>
+          <label class="wifi-label" for="wifi-ssid">Nombre de la red (SSID)</label>
           <input id="wifi-ssid" class="wifi-input" maxlength="32" required autocomplete="off">
-          <label class="wifi-label" for="wifi-password">Password</label>
+          <label class="wifi-label" for="wifi-password">Contraseña</label>
           <input id="wifi-password" class="wifi-input" type="password" maxlength="63" autocomplete="new-password">
-          <p class="help">Leave the password empty only for an open network.</p>
-          <button class="save-btn" type="submit">Connect</button>
+          <p class="help">Dejá la contraseña vacía solo si la red es abierta.</p>
+          <button class="save-btn" type="submit">Conectar</button>
         </form>
         <p class="help" id="wifi-status" aria-live="polite"></p>
-        <p class="help">On your home Wi-Fi: <a href="http://aerogarden.local">aerogarden.local</a>. You can also join <strong>AeroGarden-Setup</strong> (password: aerogarden) and open <a href="http://192.168.4.1">192.168.4.1</a>.</p>
+        <p class="help">Desde tu red Wi-Fi: <a href="http://aerogarden.local">aerogarden.local</a>. También podés conectarte a <strong>AeroGarden-Setup</strong> (contraseña: aerogarden) y abrir <a href="http://192.168.4.1">192.168.4.1</a>.</p>
       </div>
       <div class="settings-card status-card">
-        <h3>Device Status</h3>
-        <div class="setting-row"><span>IP Address</span><span id="status-ip">–</span></div>
-        <div class="setting-row"><span>Uptime</span><span id="status-uptime">–</span></div>
+        <h3>Estado del dispositivo</h3>
+        <div class="setting-row"><span>Dirección IP</span><span id="status-ip">–</span></div>
+        <div class="setting-row"><span>Tiempo encendido</span><span id="status-uptime">–</span></div>
       </div>
     </section>
 
@@ -245,7 +245,7 @@
   <nav class="bottom-nav">
     <button class="nav-btn active" onclick="showPage('monitoring', this)">
       <svg viewBox="0 0 24 24"><path d="M3 13h4v8H3zm6-6h4v14H9zm6 3h4v11h-4z"/></svg>
-      <span>Monitoring</span>
+      <span>Monitoreo</span>
     </button>
     <button class="nav-btn" onclick="showPage('control', this)">
       <svg viewBox="0 0 24 24"><path d="M12 15.5A3.5 3.5 0 018.5 12 3.5 3.5 0 0112 8.5a3.5 3.5 0 013.5 3.5 3.5 3.5 0 01-3.5 3.5m7.43-2.92c.04-.32.07-.64.07-.97 0-.33-.03-.66-.07-1l2.16-1.68c.19-.15.24-.42.12-.64l-2.04-3.54c-.12-.22-.39-.3-.61-.22l-2.55 1.03c-.52-.4-1.08-.73-1.69-.98l-.38-2.71C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.71c-.61.25-1.17.59-1.69.98L4.89 5.08c-.22-.08-.49 0-.61.22L2.24 8.84c-.13.22-.07.49.12.64L4.52 11.1c-.04.34-.07.67-.07 1 0 .33.03.65.07.97l-2.16 1.68c-.19.15-.24.42-.12.64l2.04 3.54c.12.22.39.3.61.22l2.55-1.03c.52.4 1.08.73 1.69.98l.38 2.71c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.71c.61-.25 1.17-.58 1.69-.98l2.55 1.03c.22.08.49 0 .61-.22l2.04-3.54c.12-.22.07-.49-.12-.64l-2.16-1.69z"/></svg>
@@ -253,7 +253,7 @@
     </button>
     <button class="nav-btn" onclick="showPage('settings', this)">
       <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm1 17.93V18a1 1 0 00-2 0v1.93A8.001 8.001 0 014.07 13H6a1 1 0 000-2H4.07A8.001 8.001 0 0111 4.07V6a1 1 0 002 0V4.07A8.001 8.001 0 0119.93 11H18a1 1 0 000 2h1.93A8.001 8.001 0 0113 19.93z"/></svg>
-      <span>Settings</span>
+      <span>Ajustes</span>
     </button>
   </nav>
 
