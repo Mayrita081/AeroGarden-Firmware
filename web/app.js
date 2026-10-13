@@ -83,6 +83,25 @@ async function saveLEDs(button) {
       autoLight: el('auto-light').checked, lightTarget: number('light-target',1,100)}, 'Lights saved');
   } catch (error) { showToast(error.message); }
 }
+function minuteOfDay(id) {
+  const value = el(id).value;
+  if (!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(value)) throw new Error('Choose a valid start and end time');
+  const [hours, minutes] = value.split(':').map(Number); return hours * 60 + minutes;
+}
+function formatMinute(minute) {
+  return String(Math.floor(minute/60)).padStart(2,'0') + ':' + String(minute%60).padStart(2,'0');
+}
+async function saveLEDSchedule(button) {
+  try {
+    const startMinute = minuteOfDay('led-start'), endMinute = minuteOfDay('led-end');
+    if (startMinute === endMinute) throw new Error('Start and end times must be different');
+    await command(button, '/api/leds/schedule', {enabled:el('led-schedule-enabled').checked,
+      startMinute, endMinute, utcOffsetMinutes:number('led-offset',-720,840)}, 'LED schedule saved');
+  } catch(error) { showToast(error.message); }
+}
+async function syncClock(button) {
+  await command(button, '/api/time', {epoch:Math.floor(Date.now()/1000)}, 'Device clock updated');
+}
 async function togglePump(checkbox) {
   const requested = checkbox.checked;
   if (await command(checkbox, '/api/pump', {state: requested ? 1 : 0}, requested ? 'Pump ON' : 'Pump OFF')) {
@@ -182,13 +201,25 @@ function updateUI(data, fromCommand = false) {
   el('pump-status').textContent=data.pumpMode==='manual'?'Manual control':
     (data.pumpMode==='cycle'?'Automatic cycle. ':'Timer. ')+'Turns '+(data.pump?'off':'on')+' in '+formatUptime(data.remainingSeconds);
   el('schedule-direction').textContent=data.pump?'Turn off in':'Turn on again in';
-  el('light-output').textContent='Current output: red '+Math.round(data.actualRed/255*100)+'%, blue '+Math.round(data.actualBlue/255*100)+'%';
+  el('light-output').textContent = Array.isArray(data.sectionOutput)
+    ? data.sectionOutput.map((row,i) => 'Sensor ' + (i+1) + ' sections: red ' + Math.round(row.red/255*100) + '%, blue ' + Math.round(row.blue/255*100) + '%').join(' · ')
+    : 'Average output: red ' + Math.round(data.actualRed/255*100) + '%, blue ' + Math.round(data.actualBlue/255*100) + '%';
+  el('led-clock-status').textContent = data.clockValid
+    ? 'Garden time: ' + formatMinute(data.localMinute) + ' (saved UTC offset).'
+    : 'Clock not set. Waiting for internet time, or use this device’s time below.';
+  el('led-schedule-status').textContent = !data.ledScheduleEnabled ? 'Daily schedule disabled.'
+    : !data.clockValid ? 'Scheduled LEDs remain OFF until the clock is set.'
+    : (data.ledWindowActive ? 'ON period' : 'OFF period') + ' · Every day ' + formatMinute(data.ledStartMinute) + '–' + formatMinute(data.ledEndMinute);
   el('wifi-status').textContent=data.wifiStatus+(data.ssid?' · '+data.ssid:'');
   el('status-ip').textContent=data.ip;
   el('status-uptime').textContent=formatUptime(data.uptime);
   // Initialize editable fields once; polling must not overwrite unsaved edits.
   if (!initialized) {
     el('slider-red-0').value=data.red; el('slider-blue-0').value=data.blue;
+    el('led-schedule-enabled').checked = data.ledScheduleEnabled || false;
+    el('led-start').value = formatMinute(data.ledStartMinute ?? 360);
+    el('led-end').value = formatMinute(data.ledEndMinute ?? 1080);
+    el('led-offset').value = data.utcOffsetMinutes ?? -180;
     el('auto-light').checked=data.autoLight; el('light-target').value=data.lightTarget;
     el('cycle-on').value=data.onMinutes; el('cycle-off').value=data.offMinutes;
     el('setting-floors').value=data.floors; el('wifi-ssid').value=data.ssid||'';

@@ -133,3 +133,40 @@ test('failed first status request exposes setup and allows polling to recover',a
  h.setHandler(async()=>state); await h.context.fetchSensors();
  assert.equal(h.elements.get('garden-hub').hidden,false);
 });
+
+test('LED schedule submits daily times and UTC offset',async()=>{
+ const h=harness();h.context.updateUI(state);
+ h.elements.get('led-schedule-enabled').checked=true;
+ h.elements.get('led-start').value='06:00';h.elements.get('led-end').value='18:00';h.elements.get('led-offset').value='-180';
+ await h.context.saveLEDSchedule(null);
+ assert.equal(h.calls[0].url,'/api/leds/schedule');
+ assert.deepEqual(JSON.parse(h.calls[0].options.body),{enabled:true,startMinute:360,endMinute:1080,utcOffsetMinutes:-180});
+});
+test('LED overnight times accepted, equal or invalid times rejected',async()=>{
+ const h=harness();h.context.updateUI(state);
+ h.elements.get('led-start').value='18:00';h.elements.get('led-end').value='06:00';h.elements.get('led-offset').value='-180';
+ await h.context.saveLEDSchedule(null);assert.equal(h.calls[0].url,'/api/leds/schedule');
+ const count=h.calls.length;
+ h.elements.get('led-end').value='18:00';await h.context.saveLEDSchedule(null);assert.equal(h.calls.length,count);
+ h.elements.get('led-end').value='24:00';await h.context.saveLEDSchedule(null);assert.equal(h.calls.length,count);
+});
+test('saved LED schedule restores once and polling preserves unsaved edits',()=>{
+ const h=harness();const scheduled={...state,ledScheduleEnabled:true,ledStartMinute:1080,ledEndMinute:360,utcOffsetMinutes:-180,clockValid:false};
+ h.context.updateUI(scheduled);assert.equal(h.elements.get('led-start').value,'18:00');
+ assert.match(h.elements.get('led-schedule-status').textContent,/remain OFF/);
+ h.elements.get('led-start').value='19:00';h.context.updateUI(scheduled);assert.equal(h.elements.get('led-start').value,'19:00');
+ h.context.updateUI({...scheduled,clockValid:true,localMinute:0,ledWindowActive:true});assert.match(h.elements.get('led-schedule-status').textContent,/ON period/);
+});
+test('browser clock synchronization sends UTC epoch without shifting timezone',async()=>{
+ const h=harness();const before=Math.floor(Date.now()/1000);await h.context.syncClock(null);
+ assert.equal(h.calls[0].url,'/api/time');const epoch=JSON.parse(h.calls[0].options.body).epoch;
+ assert.ok(epoch>=before && epoch<=Math.floor(Date.now()/1000));
+});
+
+test('LED output reports each independent sensor section',()=>{
+ const h=harness();h.context.updateUI({...state,sectionOutput:[{red:255,blue:128},{red:128,blue:64},{red:0,blue:0},{red:64,blue:32}]});
+ const text=h.elements.get('light-output').textContent;
+ assert.match(text,/Sensor 1 sections: red 100%, blue 50%/);
+ assert.match(text,/Sensor 3 sections: red 0%, blue 0%/);
+ assert.match(text,/Sensor 4 sections:/);
+});

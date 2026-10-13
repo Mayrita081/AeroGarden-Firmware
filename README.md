@@ -6,11 +6,25 @@ Editable web assets now live in `web/` inside this firmware project. PlatformIO 
 
 - **Pump:** switching it is immediate and cancels any schedule. After switching off, the hour/minute card opens as in the supplied design. “Schedule next switch” also lets you schedule turning an already-running pump off. A timer switches the current state once after 1 minute to 7 days. “Cancel” dismisses the editor; “Stop schedule” cancels the active timer/cycle on the device while retaining the current pump state.
 - **Automatic pump cycle:** enter independent ON/OFF durations in minutes. It starts a full interval from the current state and repeats until stopped or manually overridden. Durations must be whole minutes from 1 to 10080. This is elapsed-time scheduling, not a calendar/time-of-day schedule.
-- **Automatic light:** set a nonzero red/blue mix, enable Automatic light, choose a target and save. Equal slider values produce equal red/blue output; a 1:2 mix remains approximately 1:2 at every brightness, allowing for 8-bit rounding. Manual mode uses the exact 0–255 slider values. Automatic mode normalizes the mix and varies brightness across the full range in 5% steps every two seconds, with a 3% deadband.
-- **Light target:** a percentage of the raw 12-bit ADC range, not lux or a plant-specific illumination recommendation. Tune it using the actual sensor and lamp placement. The sensor can see ambient and grow light; the controller increases/decreases output towards the target.
+- **Automatic light:** set a nonzero red/blue mix, enable Automatic light, choose a target and save. Equal slider values produce equal red/blue output; a 1:2 mix remains approximately 1:2 at every brightness, allowing for 8-bit rounding. Manual mode uses the exact 0–255 slider values. Automatic mode normalizes the mix and calculates brightness separately for each of the four ambient-only sensors every two seconds. Brightness is clamped to 0–100% using `1 - ambient / target`: darkness gives full output, half the target gives half output, and reaching or exceeding the target turns the corresponding section off. There is no accumulating feedback loop and no averaging between sensors.
+- **Light target:** a percentage of the raw 12-bit ADC range, not lux or a plant-specific illumination recommendation. Tune it using the actual sensor and lamp placement. Sensors measure natural ambient light and are not affected by the LEDs. The target is the ambient level at which supplemental light becomes unnecessary. Each sensor controls the same 32-LED section on every active floor, preserving the selected red/blue ratio.
 - **Wi-Fi:** Settings accepts the network name and a new password (empty only for an open network). It tries the connection after returning the HTTP response, with a 20-second timeout. Credentials are saved to ESP32 Preferences before connecting. A failed attempt clears the saved network name and password and returns to the credentials-only setup screen. This also applies if saved credentials fail at boot or reconnection. Passwords are never returned by the API.
 
 Light settings, floor count and repeating pump settings survive reboots. The pump always boots OFF; a saved cycle starts with a complete OFF interval. Manual ON state and one-shot timers do not survive a restart. Refresh rate is stored in the browser.
+
+## Daily LED schedule
+
+In LED Control, save your desired color and Auto Light settings, then enable Daily LED schedule. Set Turn on at to 06:00 and Turn off at to 18:00 for a daily 6 a.m.–6 p.m. window. Save LED schedule separately from Save lights. The start is inclusive and the end exclusive. Overnight windows such as 18:00–06:00 work too; equal start/end times are rejected. Disable and save the schedule for unrestricted lighting.
+
+Scheduling gates all LED output: outside the window the LEDs are off, even if sliders are saved or Auto Light is enabled. During the ON period, the saved manual channels or automatic brightness control apply. Choose nonzero channels if you want visible light; Auto Light may reduce output to zero if ambient light is sufficient. The daily schedule overrides all four sections, forcing them off outside the ON window. Sensor readings continue while off, so the next ON period uses current ambient light.
+
+The UTC offset defaults to −180 minutes (UTC−03:00, Argentina). It is editable and saved with the schedule. This is a fixed offset; adjust it yourself for daylight-saving changes in other regions. Garden time and the current ON/OFF period are displayed in the controls.
+
+After Wi-Fi connects, the ESP32 requests UTC time asynchronously from pool.ntp.org and time.google.com. If internet time is unavailable, press Use this device’s time to set the clock from your phone/computer. Its clock must be correct. The schedule then runs on the ESP32 without an open browser and continues through network outages while powered. A power loss preserves the schedule but not a reliable wall clock: scheduled LEDs remain off until network time or browser time is available. With scheduling disabled, existing lighting works without a clock.
+
+Firmware checks schedule boundaries continuously and applies schedule/time changes immediately. Configuration is stored as a single Preferences record. New API routes: POST /api/leds/schedule accepts enabled, startMinute, endMinute and utcOffsetMinutes; POST /api/time accepts UTC epoch seconds. Both require completed Wi-Fi setup, like the other controls.
+
+Validation for this addition covers daily/overnight boundaries, UTC date rollover, an unset clock, disabling scheduling, restoring form values, invalid times, and browser clock synchronization. Hardware checks still needed: set a window a few minutes ahead, verify ON/OFF with manual and automatic light, reboot with internet unavailable (lights should stay off), then set browser time and verify the current window is applied.
 
 ## First-start setup
 
@@ -66,7 +80,7 @@ node --test test/web.test.cjs
 & "$env:USERPROFILE/.platformio/packages/toolchain-riscv32-esp/bin/riscv32-esp-elf-g++.exe" -std=c++14 -I include -fsyntax-only test/control_static.cpp
 ```
 
-The fifteen web tests cover confirmed state updates, server/network failures, input validation, cancellation, overlapping commands, stale poll responses, unsaved edits, onboarding visibility/save/success/failure transitions, missing Wi-Fi state, and recovery after a failed initial status request. Fourteen C++ assertions cover one-shot switching in both directions, repeating cycles, manual override, replacement timers, millis rollover, light response/deadband/bounds and color ratios.
+The twenty web tests cover confirmed state updates, server/network failures, input validation, cancellation, overlapping commands, stale poll responses, unsaved edits, onboarding visibility/save/success/failure transitions, missing Wi-Fi state, and recovery after a failed initial status request. Thirty-three C++ assertions cover one-shot switching in both directions, repeating cycles, manual override, replacement timers, millis rollover, light response/deadband/bounds and color ratios.
 
 Hardware verification reported by the project owner on 2026-10-12: the setup form, pump schedule, and LED controls work on the prototype. Automatic light adjustment, incorrect-credential recovery, and persistence after a power cycle still need hardware verification.
 
@@ -78,7 +92,22 @@ Detailed hardware checks:
 - Try incorrect Wi-Fi credentials, then correct credentials from the setup AP. Confirm home-network access via aerogarden.local, saved credentials after reboot and continued setup access when the router is absent.
 - Power-cycle with a saved pump cycle and confirm the pump starts OFF.
 
-Hardware details retained: ESP32-C3; pump GPIO 1; NeoPixels GPIO 0, 32 LEDs per floor, 3 floors; DHT11 GPIO 7; DS18B20 GPIO 8. All four light readings currently map to **GPIO 3**, so they represent one physical input. Change TEMT_PIN only when distinct ADC inputs are wired. GPIO 8 is a strapping pin on the C3; the existing board wiring needs hardware verification.
+## Confirmed wiring and section mapping
+
+ESP32-C3: LED data GPIO 21; pump GPIO 20; DHT22 GPIO 7; DS18B20 GPIO 8. Ambient sensors 1–4 use GPIOs 0, 1, 2, 3 respectively. The separate LED on GPIO 5 is left unchanged. Each floor has 128 serial LEDs (four sections of 32), with up to three floors / 384 LEDs. Number of Floors in Settings determines how many complete 128-LED floors are active; remaining pixels are off.
+
+Zero-based, inclusive LED ranges:
+
+| Sensor / GPIO | Floor 1 | Floor 2 | Floor 3 |
+| --- | --- | --- | --- |
+| 1 / 0 | 0–31 | 128–159 | 256–287 |
+| 2 / 1 | 32–63 | 160–191 | 288–319 |
+| 3 / 2 | 64–95 | 192–223 | 320–351 |
+| 4 / 3 | 96–127 | 224–255 | 352–383 |
+
+The UI reports output for each sensor's sections. API sectionOutput contains four red/blue pairs in sensor order; legacy actualRed/actualBlue fields are their averages. Manual mode applies the same chosen channels to every active section, independent of sensor readings.
+
+Hardware verification for the new mapping: illuminate one sensor at a time and confirm only its sections dim on all active floors. Shade that sensor and confirm those sections brighten. Check the 31/32, 127/128 and 255/256 boundaries, inactive floors, manual mode, color ratio, and schedule OFF behavior. Existing hardware confirmations predate this rewiring and per-section change.
 
 The old global request-body callback was replaced with registered JSON handlers that assemble fragmented bodies and issue a single response. Sensor conversions no longer block for the DS18B20 conversion time, HTTP state is mutex-protected, and polling cannot overwrite a newer command result. These fixes remove identified software causes; the reported 30-second physical delay cannot be confirmed eliminated without hardware testing.
 

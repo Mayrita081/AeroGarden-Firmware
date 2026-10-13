@@ -11,15 +11,18 @@
 #include <DallasTemperature.h>
 #include <Adafruit_NeoPixel.h>
 #include "Control.h"
+#include <time.h>
+#include <sys/time.h>
 
-// Existing prototype wiring. Assign distinct ADC pins when more sensors exist.
-constexpr int NEO_PIN = 0, PUMP_PIN = 1, DHT_PIN = 7, DS18B20_PIN = 8;
-constexpr int TEMT_PIN[] = {3, 3, 3, 3};
-constexpr int LEDS_PER_FLOOR = 32, MAX_FLOORS = 3;
+// Confirmed wiring: four ambient-only sensors around each floor.
+// GPIO 5 is a separate LED, intentionally left untouched.
+constexpr int NEO_PIN = 21, PUMP_PIN = 20, DHT_PIN = 7, DS18B20_PIN = 8;
+constexpr int TEMT_PIN[] = {0, 1, 2, 3};
+constexpr int MAX_FLOORS = 3;
 Adafruit_NeoPixel strip(LEDS_PER_FLOOR * MAX_FLOORS, NEO_PIN, NEO_GRB + NEO_KHZ800);
 OneWire oneWire(DS18B20_PIN);
 DallasTemperature tempSensors(&oneWire);
-DHT dht(DHT_PIN, DHT11);
+DHT dht(DHT_PIN, DHT22);
 AsyncWebServer server(80);
 Preferences prefs;
 SemaphoreHandle_t stateMutex;
@@ -28,10 +31,13 @@ struct StateLock {
   ~StateLock() { xSemaphoreGive(stateMutex); }
 };
 PumpControl pump;
+DailyLightSchedule ledSchedule;
+bool lastLightAllowed = true;
+bool ntpStarted = false;
 int activeFloors = 1, redIntensity = 0, blueIntensity = 0;
 bool autoLight = false;
 int lightTarget = 50;
-float lightScale = 0;
+Color sectionOutput[LIGHT_SENSOR_COUNT] = {};
 int actualRed = 0, actualBlue = 0;
 float humidity = NAN, ambientTemp = NAN, waterTemp = NAN;
 int lightIntensity[4] = {};
@@ -40,11 +46,26 @@ String wifiMode = "setup", wifiError;
 bool wifiPending = false, wifiAttempting = false;
 uint32_t wifiStart = 0, wifiApplyAt = 0;
 
+bool clockValid(time_t epoch) { return epoch >= 1704067200LL; }
+bool lightAllowed(time_t epoch) {
+  return ledSchedule.allows(clockValid(epoch), localMinute(epoch, ledSchedule.utcOffsetMinutes));
+}
 void writeLEDs() {
-  auto color = scaledColor(redIntensity, blueIntensity, autoLight, lightScale);
-  actualRed = color.red; actualBlue = color.blue;
-  for (int px = 0; px < strip.numPixels(); ++px)
-    strip.setPixelColor(px, px < activeFloors * LEDS_PER_FLOOR ? strip.Color(actualRed, 0, actualBlue) : 0);
+  lastLightAllowed = lightAllowed(time(nullptr));
+  actualRed = 0; actualBlue = 0;
+  for (int sensor = 0; sensor < LIGHT_SENSOR_COUNT; ++sensor) {
+    sectionOutput[sensor] = sectionColor(redIntensity, blueIntensity, autoLight,
+      lightIntensity[sensor], lightTarget, lastLightAllowed);
+    actualRed += sectionOutput[sensor].red;
+    actualBlue += sectionOutput[sensor].blue;
+  }
+  // Legacy aggregate fields are averages; sectionOutput is the authoritative output.
+  actualRed /= LIGHT_SENSOR_COUNT; actualBlue /= LIGHT_SENSOR_COUNT;
+  for (int px = 0; px < strip.numPixels(); ++px) {
+    const Color color = sectionOutput[sensorForPixel(px)];
+    strip.setPixelColor(px, px < activeFloors * LEDS_PER_FLOOR
+      ? strip.Color(color.red, 0, color.blue) : 0);
+  }
   strip.show();
 }
 void writePump() { digitalWrite(PUMP_PIN, pump.on ? HIGH : LOW); }
@@ -56,7 +77,7 @@ void saveControls() {
   prefs.putUInt("onMins", pump.onMinutes); prefs.putUInt("offMins", pump.offMinutes);
 }
 String snapshot() {
-  StaticJsonDocument<1536> doc;
+  StaticJsonDocument<3072> doc;
   doc["humidity"] = humidity; doc["ambientTemp"] = ambientTemp; doc["waterTemp"] = waterTemp;
   auto light = doc.createNestedArray("light");
   for (int value : lightIntensity) light.add(value);
@@ -66,7 +87,19 @@ String snapshot() {
   doc["onMinutes"] = pump.onMinutes; doc["offMinutes"] = pump.offMinutes;
   doc["red"] = redIntensity; doc["blue"] = blueIntensity;
   doc["actualRed"] = actualRed; doc["actualBlue"] = actualBlue;
+  auto outputs = doc.createNestedArray("sectionOutput");
+  for (int sensor = 0; sensor < LIGHT_SENSOR_COUNT; ++sensor) {
+    auto output = outputs.createNestedObject();
+    output["red"] = sectionOutput[sensor].red; output["blue"] = sectionOutput[sensor].blue;
+  }
   doc["autoLight"] = autoLight; doc["lightTarget"] = lightTarget; doc["floors"] = activeFloors;
+  const time_t epoch = time(nullptr);
+  doc["clockValid"] = clockValid(epoch);
+  doc["localMinute"] = clockValid(epoch) ? localMinute(epoch, ledSchedule.utcOffsetMinutes) : -1;
+  doc["ledScheduleEnabled"] = ledSchedule.enabled;
+  doc["ledStartMinute"] = ledSchedule.startMinute; doc["ledEndMinute"] = ledSchedule.endMinute;
+  doc["utcOffsetMinutes"] = ledSchedule.utcOffsetMinutes;
+  doc["ledWindowActive"] = lightAllowed(epoch);
   doc["uptime"] = millis() / 1000;
   doc["ip"] = WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
   doc["wifiStatus"] = wifiStatus; doc["ssid"] = wifiSSID;
@@ -96,6 +129,36 @@ void setupRoutes() {
     StateLock lock;
     auto response = req->beginResponse(200, "application/json", snapshot());
     response->addHeader("Cache-Control", "no-store"); req->send(response);
+  });
+  // Register child route before /api/leds (AsyncJson also matches child paths).
+  post("/api/leds/schedule", [](AsyncWebServerRequest* req, JsonVariant& j) {
+    if (!j["enabled"].is<bool>() || !integer(j["startMinute"], 0, 1439) ||
+        !integer(j["endMinute"], 0, 1439) || !integer(j["utcOffsetMinutes"], -720, 840)) {
+      bad(req, "Choose valid start/end times and a UTC offset from -720 to 840 minutes"); return;
+    }
+    DailyLightSchedule next;
+    next.enabled = j["enabled"]; next.startMinute = j["startMinute"]; next.endMinute = j["endMinute"];
+    next.utcOffsetMinutes = j["utcOffsetMinutes"];
+    if (!next.valid()) { bad(req, "Start and end times must be different"); return; }
+    StaticJsonDocument<256> saved;
+    saved["enabled"] = next.enabled; saved["startMinute"] = next.startMinute;
+    saved["endMinute"] = next.endMinute; saved["utcOffsetMinutes"] = next.utcOffsetMinutes;
+    String encoded; serializeJson(saved, encoded);
+    if (prefs.putString("ledSchedule", encoded) != encoded.length()) {
+      req->send(500, "application/json", "{\"error\":\"Unable to save LED schedule\"}"); return;
+    }
+    ledSchedule = next; writeLEDs(); ok(req);
+  });
+  post("/api/time", [](AsyncWebServerRequest* req, JsonVariant& j) {
+    if (!j["epoch"].is<int64_t>() || j["epoch"].as<int64_t>() < 1704067200LL ||
+        j["epoch"].as<int64_t>() > 4102444799LL) {
+      bad(req, "Provide a valid UTC timestamp between 2024 and 2099"); return;
+    }
+    timeval tv = {}; tv.tv_sec = j["epoch"].as<int64_t>();
+    if (settimeofday(&tv, nullptr) != 0) {
+      req->send(500, "application/json", "{\"error\":\"Unable to set device clock\"}"); return;
+    }
+    writeLEDs(); ok(req);
   });
   post("/api/leds", [](AsyncWebServerRequest* req, JsonVariant& j) {
     if (!integer(j["red"], 0, 255) || !integer(j["blue"], 0, 255) || !j["autoLight"].is<bool>() || !integer(j["lightTarget"], 1, 100)) {
@@ -164,13 +227,27 @@ void setup() {
   autoLight = prefs.getBool("autoLight", false); lightTarget = constrain(prefs.getInt("target", 50), 1, 100);
   if (prefs.getBool("cycle", false))
     pump.cycle(constrain(prefs.getUInt("onMins", 5), 1U, 10080U), constrain(prefs.getUInt("offMins", 5), 1U, 10080U), millis());
+  // One Preferences record keeps schedule fields consistent across a power loss.
+  StaticJsonDocument<256> savedSchedule;
+  if (!deserializeJson(savedSchedule, prefs.getString("ledSchedule", ""))) {
+    DailyLightSchedule saved;
+    saved.enabled = savedSchedule["enabled"] | false;
+    saved.startMinute = savedSchedule["startMinute"] | 360;
+    saved.endMinute = savedSchedule["endMinute"] | 1080;
+    saved.utcOffsetMinutes = savedSchedule["utcOffsetMinutes"] | -180;
+    if (saved.valid()) ledSchedule = saved;
+  }
   // Boot starts a full OFF interval for repeating schedules; one-shot timers reset.
+  analogReadResolution(12);
+  for (int i = 0; i < LIGHT_SENSOR_COUNT; ++i) {
+    pinMode(TEMT_PIN[i], INPUT);
+    lightIntensity[i] = analogRead(TEMT_PIN[i]);
+  }
   writeLEDs();
   dht.begin();
   tempSensors.begin();
   tempSensors.setWaitForConversion(false);
   tempSensors.requestTemperatures();
-  for (int pin : TEMT_PIN) pinMode(pin, INPUT);
   WiFi.persistent(false); WiFi.setHostname("aerogarden"); WiFi.mode(WIFI_AP_STA); WiFi.setSleep(false);
   WiFi.softAPConfig(IPAddress(192,168,4,1), IPAddress(192,168,4,1), IPAddress(255,255,255,0));
   WiFi.softAP("AeroGarden-Setup", "aerogarden");
@@ -188,9 +265,14 @@ void loop() {
     StateLock lock;
     now = millis();
     if (pump.tick(now)) writePump();
+    if (lightAllowed(time(nullptr)) != lastLightAllowed) writeLEDs();
     if (wifiPending && uint32_t(now - wifiApplyAt) >= 500) beginConnection();
     if (!wifiPending && wifiAttempting && WiFi.status() == WL_CONNECTED) {
       wifiAttempting = false; wifiStatus = "Connected"; wifiMode = "ready";
+      if (!ntpStarted) {
+        // SNTP syncs asynchronously; all scheduling uses UTC plus the saved offset.
+        configTime(0, 0, "pool.ntp.org", "time.google.com"); ntpStarted = true;
+      }
     } else if (!wifiPending && wifiAttempting && uint32_t(millis() - wifiStart) >= 20000) {
       WiFi.disconnect(false);
       prefs.remove("ssid"); prefs.remove("password");
@@ -211,9 +293,8 @@ void loop() {
     if (!isnan(h)) humidity = h;
     if (!isnan(t)) ambientTemp = t;
     if (wt != DEVICE_DISCONNECTED_C && wt >= -55 && wt <= 125) waterTemp = wt;
-    int total = 0;
-    for (int i = 0; i < 4; ++i) { lightIntensity[i] = values[i]; total += values[i]; }
-    if (autoLight) { lightScale = nextLightScale(lightScale, total / (4.0f * 4095), lightTarget / 100.0f); writeLEDs(); }
+    for (int i = 0; i < LIGHT_SENSOR_COUNT; ++i) lightIntensity[i] = values[i];
+    if (autoLight) writeLEDs();
   }
   delay(1);
 }

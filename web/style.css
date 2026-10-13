@@ -613,3 +613,6 @@ button:disabled, input:disabled { opacity:.55; cursor:wait; }
 .setup-actions button { border:0; border-radius:24px; padding:12px 19px; background:#edf0e8; color:#374032; font:inherit; cursor:pointer; }
 .setup-error { color:#a33232; font-size:13px; line-height:1.5; margin:12px 4px 0; }
 .setup-progress { font-size:14px; line-height:1.7; margin-top:40px; color:#41483d; }
+
+.schedule-time { max-width:55%; padding:.4rem; font:inherit; border:1px solid var(--green); border-radius:6px; }
+#led-offset { width:80px; }

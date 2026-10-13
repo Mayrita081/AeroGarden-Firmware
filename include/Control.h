@@ -27,12 +27,13 @@ struct PumpControl {
     return true;
   }
 };
-// Feedback with a 3% deadband accommodates sensors that also see grow lights.
-// These are relative ADC levels, not calibrated lux measurements.
-inline CONTROL_CONSTEXPR float nextLightScale(float scale, float measured, float target) {
-  float error = target - measured;
-  if ((error > 0.03f || error < -0.03f)) scale += error > 0 ? 0.05f : -0.05f;
-  return scale < 0 ? 0 : scale > 1 ? 1 : scale;
+// Feed-forward compensation for ambient-only sensors (normalized 0..1).
+// Each row uses only its own measurement; output cannot affect this input.
+inline CONTROL_CONSTEXPR float ambientLightScale(float measured, float target) {
+  if (target <= 0) return 0;
+  if (measured <= 0) return 1;
+  if (measured >= target) return 0;
+  return 1.0f - measured / target;
 }
 struct Color { int red, blue; };
 inline CONTROL_CONSTEXPR Color scaledColor(int red, int blue, bool automatic, float scale) {
@@ -43,4 +44,34 @@ inline CONTROL_CONSTEXPR Color scaledColor(int red, int blue, bool automatic, fl
   return {int(red * factor + 0.5f), int(blue * factor + 0.5f)};
 }
 
+constexpr int LIGHT_SENSOR_COUNT = 4;
+constexpr int LEDS_PER_SECTION = 32;
+constexpr int LEDS_PER_FLOOR = LIGHT_SENSOR_COUNT * LEDS_PER_SECTION;
+inline CONTROL_CONSTEXPR int sensorForPixel(int pixel) {
+  return (pixel % LEDS_PER_FLOOR) / LEDS_PER_SECTION;
+}
+inline CONTROL_CONSTEXPR Color sectionColor(int red, int blue, bool automatic,
+                                          int ambientADC, int targetPercent, bool allowed) {
+  return allowed ? scaledColor(red, blue, automatic,
+    ambientLightScale(ambientADC / 4095.0f, targetPercent / 100.0f)) : Color{0, 0};
+}
+// Daily local-time window: inclusive start, exclusive end; supports midnight crossing.
+struct DailyLightSchedule {
+  bool enabled = false;
+  int startMinute = 360, endMinute = 1080, utcOffsetMinutes = -180;
+  CONTROL_CONSTEXPR bool valid() const {
+    return startMinute >= 0 && startMinute < 1440 && endMinute >= 0 && endMinute < 1440 &&
+      startMinute != endMinute && utcOffsetMinutes >= -720 && utcOffsetMinutes <= 840;
+  }
+  CONTROL_CONSTEXPR bool allows(bool clockValid, int minute) const {
+    if (!enabled) return true;
+    if (!clockValid || !valid() || minute < 0 || minute >= 1440) return false;
+    return startMinute < endMinute ? minute >= startMinute && minute < endMinute
+      : minute >= startMinute || minute < endMinute;
+  }
+};
+inline CONTROL_CONSTEXPR int localMinute(int64_t epoch, int offsetMinutes) {
+  int64_t minute = (epoch / 60 + offsetMinutes) % 1440;
+  return int(minute < 0 ? minute + 1440 : minute);
+}
 #undef CONTROL_CONSTEXPR

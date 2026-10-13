@@ -136,10 +136,23 @@
               oninput="updateSliderPreview(this, 'blue')">
           </div>
           <div class="setting-row"><label for="auto-light">Automatic light</label><input type="checkbox" id="auto-light"></div>
-          <div class="setting-row"><label for="light-target">Target light (%)</label><input class="setting-input" type="number" id="light-target" min="1" max="100" value="50"></div>
-          <p class="help">In automatic mode, the sliders set the red/blue ratio. Brightness adjusts gradually to the measured light level.</p>
+          <div class="setting-row"><label for="light-target">Ambient light target (%)</label><input class="setting-input" type="number" id="light-target" min="1" max="100" value="50"></div>
+          <p class="help">In automatic mode, each sensor dims its matching 32-LED section on every active floor. Darkness gives full brightness; ambient light at or above the target turns that section off. The sliders set the red/blue ratio.</p>
           <p class="help" id="light-output"></p>
           <button class="save-btn" onclick="saveLEDs(this)">Save lights</button>
+          <div class="schedule-box">
+            <p class="schedule-title">Daily LED schedule</p>
+            <div class="setting-row"><label for="led-schedule-enabled">Enable daily schedule</label><input type="checkbox" id="led-schedule-enabled"></div>
+            <div class="setting-row"><label for="led-start">Turn on at</label><input class="schedule-time" type="time" id="led-start" value="06:00" required></div>
+            <div class="setting-row"><label for="led-end">Turn off at</label><input class="schedule-time" type="time" id="led-end" value="18:00" required></div>
+            <div class="setting-row"><label for="led-offset">UTC offset (minutes)</label><input class="setting-input" type="number" id="led-offset" min="-720" max="840" value="-180"></div>
+            <p class="help">Argentina: −180 (UTC−03:00). Repeats every day, including overnight ranges. Adjust the offset if your region changes clocks.</p>
+            <p class="help">Uses your saved color and Auto Light settings during the ON period. Outside it, all LEDs stay off.</p>
+            <p class="help" id="led-clock-status" role="status"></p>
+            <p class="help" id="led-schedule-status" role="status"></p>
+            <button class="save-btn" onclick="saveLEDSchedule(this)">Save LED schedule</button>
+            <button class="sched-ok" onclick="syncClock(this)">Use this device’s time</button>
+          </div>
         </div>
       </div>
 
