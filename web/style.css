@@ -616,3 +616,67 @@ button:disabled, input:disabled { opacity:.55; cursor:wait; }
 
 .schedule-time { max-width:55%; padding:.4rem; font:inherit; border:1px solid var(--green); border-radius:6px; }
 #led-offset { width:80px; }
+
+/* Responsive layouts: retain the phone UI, use available tablet/desktop width. */
+body { width:100%; }
+.control-panel, .tab-content, .page, .settings-card { min-width:0; }
+.setting-row { gap:.8rem; }
+.setting-row > input { flex-shrink:0; }
+.setting-row > span, .help, .hub-info { overflow-wrap:anywhere; }
+.time-field { min-width:0; }
+.sensor-values { flex-wrap:wrap; }
+button:focus-visible, input:focus-visible, a:focus-visible {
+  outline:3px solid var(--green-dark); outline-offset:3px;
+}
+@media (min-width:768px) {
+  body { max-width:1280px; background:var(--grey-light); padding:24px; height:auto; }
+  .garden-hub {
+    min-height:calc(100vh - 48px); display:grid;
+    grid-template-columns:minmax(0,1fr);
+    grid-template-rows:auto auto 1fr;
+    grid-template-areas:"header" "navigation" "content";
+    gap:20px;
+  }
+  .garden-hub > header { grid-area:header; border:0; border-radius:var(--radius); padding:20px 24px; box-shadow:var(--shadow); }
+  .garden-hub > main { grid-area:content; padding:0 0 24px; overflow:visible; min-width:0; }
+  .bottom-nav {
+    grid-area:navigation; position:static; transform:none;
+    max-width:none; width:100%; border:0; border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:6px; gap:6px; align-self:center;
+  }
+  .nav-btn { flex-direction:row; justify-content:center; gap:8px; padding:12px 16px; font-size:.9rem; border-radius:var(--radius-sm); min-height:46px; }
+  .nav-btn.active { background:var(--green-bg); color:var(--green-dark); }
+  #page-monitoring.active, #page-settings.active {
+    display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; align-items:start;
+  }
+  .sensor-group, .settings-card { margin-bottom:0; }
+  .sensor-group-header { min-height:64px; flex-wrap:wrap; }
+  .sensor-group-header > span:not(.chevron) { flex:1; }
+  .control-layout {
+    display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px;
+    padding:0; background:transparent; box-shadow:none; align-items:start;
+  }
+  .control-panel, .control-layout > .schedule-box {
+    background:var(--white); padding:24px; margin:0;
+    border-radius:var(--radius); box-shadow:var(--shadow);
+  }
+  .tab-bar { width:calc((100% - 20px) / 2); max-width:none; margin-bottom:20px; }
+  .tab-btn { min-height:44px; }
+  .save-btn, .sched-ok, .sched-cancel { min-height:44px; }
+  .control-layout > .schedule-box > .sched-ok { margin-top:12px; }
+  .settings-card { padding:24px; }
+  .wifi-setup { width:100%; max-width:520px; min-height:0; margin:32px auto; padding:32px; box-shadow:var(--shadow); }
+  .toast { bottom:24px; }
+}
+@media (min-width:1100px) {
+  .garden-hub {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    grid-template-rows:auto 1fr;
+    grid-template-areas:"header navigation" "content content";
+  }
+  .bottom-nav { width:100%; min-width:0; align-self:stretch; }
+  .bottom-nav .nav-btn { min-width:0; padding:12px 8px; }
+  #page-monitoring.active, #page-settings.active { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .control-layout { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+  .control-panel, .control-layout > .schedule-box { padding:28px; }
+}

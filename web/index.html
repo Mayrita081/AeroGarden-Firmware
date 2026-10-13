@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AeroGarden Connect</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -124,7 +124,8 @@
 
       <!-- LED Tab -->
       <div id="tab-led" class="tab-content active">
-        <div class="control-card">
+        <div class="control-card control-layout">
+          <div class="control-panel">
           <p class="control-label">Red LEDs</p>
           <div class="led-slider-row">
             <input type="range" min="0" max="255" value="0" class="led-slider red-slider" id="slider-red-0"
@@ -140,6 +141,7 @@
           <p class="help">In automatic mode, each sensor dims its matching 32-LED section on every active floor. Darkness gives full brightness; ambient light at or above the target turns that section off. The sliders set the red/blue ratio.</p>
           <p class="help" id="light-output"></p>
           <button class="save-btn" onclick="saveLEDs(this)">Save lights</button>
+          </div>
           <div class="schedule-box">
             <p class="schedule-title">Daily LED schedule</p>
             <div class="setting-row"><label for="led-schedule-enabled">Enable daily schedule</label><input type="checkbox" id="led-schedule-enabled"></div>
@@ -158,7 +160,8 @@
 
       <!-- Pump Tab -->
       <div id="tab-pump" class="tab-content">
-        <div class="control-card">
+        <div class="control-card control-layout">
+          <div class="control-panel">
           <div class="pump-row">
             <span class="pump-label">Water Pump</span>
             <label class="toggle-switch">
@@ -188,6 +191,7 @@
               <button class="sched-cancel" onclick="closeSchedule()">Cancel</button>
               <button class="sched-ok" onclick="confirmSchedule(this)">OK</button>
             </div>
+          </div>
           </div>
           <div class="schedule-box">
             <p class="schedule-title">Automatic pump cycle</p>

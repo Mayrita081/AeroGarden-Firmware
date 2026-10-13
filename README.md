@@ -44,6 +44,10 @@ The station IP still comes from the router. A universal fixed station IP cannot 
 
 API access follows the existing local-network trust model: anyone on the home network or setup AP can control the device. Do not expose port 80 to the Internet.
 
+## Responsive interface
+
+Phones keep the existing single-column interface and fixed bottom navigation. From 768px, the hub expands to the available width, monitoring/settings cards use two columns, and each LED/pump control card sits beside its schedule. Navigation moves above the content. From 1100px, monitoring/settings use three columns and navigation sits beside the header. Content is capped at 1280px for readability. Wi-Fi onboarding stays centered with a compact form. Browser zoom is enabled; layouts respond to the resulting viewport size. Sensor cards remain expandable and the existing LED/Pump tabs still select their respective controls.
+
 ## Build and upload
 
 From this folder with PlatformIO installed:
